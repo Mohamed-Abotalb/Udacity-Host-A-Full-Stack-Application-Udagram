@@ -1,8 +1,8 @@
-# This config is equivalent to both the '.circleci/extended/orb-free.yml' and the base '.circleci/config.yml'
 version: 2.1
 orbs:
-  node: circleci/node@4.7
-  aws-cli: circleci/aws-cli@2.0.0
+  node: circleci/node@5.0.2
+  aws-cli: circleci/aws-cli@3.1.0
+  eb: circleci/aws-elastic-beanstalk@2.0.1
 jobs:
   frontend:
     working_directory: ~/app/udagram-frontend
@@ -13,12 +13,12 @@ jobs:
       - node/install-packages:
           app-dir: ~/app/udagram-frontend
       - run:
-          name: Build Frontend
+          name: Frontend Build
           command: npm run build
       - aws-cli/install
       - run:
-          name: Deploy Frontend
-          command: aws s3 cp --recursive --acl public-read ./www s3://udagram-mohamed/
+          name: Frontend Deployment
+          command: npm run deploy
   server:
     working_directory: ~/app/udagram-api
     executor: node/default
@@ -28,22 +28,24 @@ jobs:
       - node/install-packages:
           app-dir: ~/app/udagram-api
       - run:
-          name: Build and Archive Server
-          command: |-
-            npm run build
-            printenv > www/.env
+          name: Server Build and Archive
+          command: npm run build
       - aws-cli/install
+      - eb/setup
       - run:
-          name: Deploy Server
-          command: |-
-            aws s3 cp ./www/Archive.zip udagram-app-env
-            aws elasticbeanstalk create-application-version --application-name udagram-app --version-label <<pipeline.git.revision>> --source-bundle S3Bucket="udagram-mohamed",S3Key="Archive.zip"
-            aws elasticbeanstalk update-environment --application-name udagram-app --environment-name udagram-app-env --version-label <<pipeline.git.revision>>
-      - node/test:
-          version: '16.10'
-          pkg-manager: npm
+          name: Server Deployment
+          command: npm run deploy
 workflows:
   build_and_deploy:
     jobs:
-      - frontend
-      - server
+      - server:
+          filters:
+            branches:
+              only: 
+                - master
+      - frontend:
+          filters:
+            branches:
+              only: 
+              - master
+          
